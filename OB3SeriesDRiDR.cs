@@ -245,56 +245,59 @@ namespace NinjaTrader.NinjaScript.Strategies
 
 			#endregion
 
-			#region	
+			#region	DR/iDR calculations
 		    // Reset calculations and lists at the start of each trading day
-		    if (Bars.IsFirstBarOfSession && IsFirstTickOfBar)
-		    {
-		        Print("Resetting calculations for a new trading day: " + Time[0]);
-		        highs.Clear();
-		        lows.Clear();
-		        closes.Clear();
-		        calculationsDone = false;  // Ensure this is reset each day
-		    }
-		
-		    // Proceed with your trading logic
-		    TimeSpan currentTime = Time[0].TimeOfDay;
-		
-		    // Collect data between 9:30 and 10:30 AM
-		    if (currentTime >= new TimeSpan(9, 30, 0) && currentTime < new TimeSpan(10, 30, 0))
-		    {
-		        Print("Collecting data between 9:30 and 10:30: " + Time[0]);
-		        highs.Add(High[0]);
-		        lows.Add(Low[0]);
-		        closes.Add(Close[0]);
-		    }
-		    // Perform DR/iDR calculations after 10:30 AM if they haven't been done yet
-		    else if (currentTime >= new TimeSpan(10, 30, 0) && !calculationsDone && highs.Count > 0 && lows.Count > 0 && closes.Count > 0)
-		    {
-		        Print("Performing DR/iDR calculations after 10:30: " + Time[0]);
-		        highestHigh = highs.Max();
-		        lowestLow = lows.Min();
-		        highestHighIDR = closes.Max();
-		        lowestLowIDR = closes.Min();
-		
-		        // Determine DR direction
-		        double openingPrice = closes[closes.Count - highs.Count];
-		        double closingPrice = closes.Last();
-		        drDirection = openingPrice < closingPrice ? 1 : (openingPrice > closingPrice ? -1 : 0);
-		
-		        calculationsDone = true;  // Ensure calculations are done only once per day
-		
-		        // Print statements for debugging
-		        Print("Highest High: " + highestHigh);
-		        Print("Lowest Low: " + lowestLow);
-		        Print("Highest High IDR: " + highestHighIDR);
-		        Print("Lowest Low IDR: " + lowestLowIDR);
-		
-		        DrawLines();
-		    }
-		    else if (calculationsDone)
-		    {
-		        Print("Skipping calculation, already done for the day: " + Time[0]);
-		    }
+			if (UseDRiDR)
+			{	
+			    if (Bars.IsFirstBarOfSession && IsFirstTickOfBar)
+			    {
+			        Print("Resetting calculations for a new trading day: " + Time[0]);
+			        highs.Clear();
+			        lows.Clear();
+			        closes.Clear();
+			        calculationsDone = false;  // Ensure this is reset each day
+			    }
+			
+			    // Proceed with your trading logic
+			    TimeSpan currentTime = Time[0].TimeOfDay;
+			
+			    // Collect data between 9:30 and 10:30 AM
+			    if (currentTime >= new TimeSpan(9, 30, 0) && currentTime < new TimeSpan(10, 30, 0))
+			    {
+			        Print("Collecting data between 9:30 and 10:30: " + Time[0]);
+			        highs.Add(High[0]);
+			        lows.Add(Low[0]);
+			        closes.Add(Close[0]);
+			    }
+			    // Perform DR/iDR calculations after 10:30 AM if they haven't been done yet
+			    else if (currentTime >= new TimeSpan(10, 30, 0) && !calculationsDone && highs.Count > 0 && lows.Count > 0 && closes.Count > 0)
+			    {
+			        Print("Performing DR/iDR calculations after 10:30: " + Time[0]);
+			        highestHigh = highs.Max();
+			        lowestLow = lows.Min();
+			        highestHighIDR = closes.Max();
+			        lowestLowIDR = closes.Min();
+			
+			        // Determine DR direction
+			        double openingPrice = closes[closes.Count - highs.Count];
+			        double closingPrice = closes.Last();
+			        drDirection = openingPrice < closingPrice ? 1 : (openingPrice > closingPrice ? -1 : 0);
+			
+			        calculationsDone = true;  // Ensure calculations are done only once per day
+			
+			        // Print statements for debugging
+			        Print("Highest High: " + highestHigh);
+			        Print("Lowest Low: " + lowestLow);
+			        Print("Highest High IDR: " + highestHighIDR);
+			        Print("Lowest Low IDR: " + lowestLowIDR);
+			
+			        DrawLines();
+			    }
+			    else if (calculationsDone)
+			    {
+			        Print("Skipping calculation, already done for the day: " + Time[0]);
+			    }
+			}
 			#endregion
 
 			if (countOnce)
@@ -316,23 +319,24 @@ namespace NinjaTrader.NinjaScript.Strategies
 
 				
 				#region Moving Averages
-				
-				cross_above = CrossAbove(SMA(FastMA), SMA(SlowMA), 1);
-				cross_below = CrossBelow(SMA(FastMA), SMA(SlowMA), 1);
-					
-				up_trend = SMA(FastMA)[0] > SMA(SlowMA)[0];
-				down_trend = SMA(FastMA)[0] < SMA(SlowMA)[0];
-				if (Close[0] > SMA(SlowMA)[0])
+				if (UseSMA && countOnce)
 				{
-					price_above = true;
-					price_below = false;
+					cross_above = CrossAbove(SMA(FastMA), SMA(SlowMA), 1);
+					cross_below = CrossBelow(SMA(FastMA), SMA(SlowMA), 1);
+						
+					up_trend = SMA(FastMA)[0] > SMA(SlowMA)[0];
+					down_trend = SMA(FastMA)[0] < SMA(SlowMA)[0];
+					if (Close[0] > SMA(SlowMA)[0])
+					{
+						price_above = true;
+						price_below = false;
+					}
+					if (Close[0] < SMA(SlowMA)[0])
+					{
+						price_above = false;
+						price_below = true;
+					}
 				}
-				if (Close[0] < SMA(SlowMA)[0])
-				{
-					price_above = false;
-					price_below = true;
-				}
-				
 				#endregion
 				
 
@@ -438,15 +442,17 @@ namespace NinjaTrader.NinjaScript.Strategies
 			TimeSpan earliestTradeTime = new TimeSpan(10, 30, 0); // 10:30 AM
 			TimeSpan startTime = Start.TimeOfDay > earliestTradeTime ? Start.TimeOfDay : earliestTradeTime; // Use manual time only if it's after 10:30 AM
 						
+
+			bool drConditionsMet = !UseDRiDR || (Close[0] <= highestHigh && Close[0] >= lowestLow && drDirection == 1);
+			bool smaConditionsMet = !UseSMA || up_trend;
+			
 			if (bullEngSignal
 			    && (Position.MarketPosition == MarketPosition.Flat)
 			    && (currentCount < MaxDailyTrades)
 			    && (BarsSinceExitExecution(0, "TX_Stop_Long", 0) > 1 || BarsSinceExitExecution(0, "TX_Stop_Long", 0) == -1)
 			    && (BarsSinceExitExecution(0, "TX_Target_Long", 0) > 1 || BarsSinceExitExecution(0, "TX_Target_Long", 0) == -1)
-			    && up_trend
-			    && Close[0] <= highestHigh // Ensure entry is within DR high
-			    && Close[0] >= lowestLow // Ensure entry is within DR low
-			    && drDirection == 1 // Ensure DR direction is upward
+			    && drConditionsMet // DR/iDR conditions are either met or bypassed
+			    && smaConditionsMet // SMA conditions are either met or bypassed
 			    && Time[0].TimeOfDay >= startTime // Check if after 10:30 AM or user-defined start time (whichever is later)
 			    && Time[0].TimeOfDay <= End.TimeOfDay // Check if within the end time
 			    )
@@ -472,15 +478,16 @@ namespace NinjaTrader.NinjaScript.Strategies
 
 			#region Short Trade
 
+			bool drShortConditionsMet = !UseDRiDR || (Close[0] <= highestHigh && Close[0] >= lowestLow && drDirection == -1);
+			bool smaShortConditionsMet = !UseSMA || down_trend;
+			
 			if (bearEngSignal
 			    && (Position.MarketPosition == MarketPosition.Flat)
 			    && (currentCount < MaxDailyTrades)
 			    && (BarsSinceExitExecution(0, "TX_Stop_Short", 0) > 1 || BarsSinceExitExecution(0, "TX_Stop_Short", 0) == -1)
 			    && (BarsSinceExitExecution(0, "TX_Target_Short", 0) > 1 || BarsSinceExitExecution(0, "TX_Target_Short", 0) == -1)
-			    && down_trend
-			    && Close[0] <= highestHigh // Ensure entry is within DR high
-			    && Close[0] >= lowestLow // Ensure entry is within DR low
-			    && drDirection == -1 // Ensure DR direction is downward
+			    && drShortConditionsMet // DR/iDR conditions are either met or bypassed
+			    && smaShortConditionsMet // SMA conditions are either met or bypassed
 			    && Time[0].TimeOfDay >= startTime // Check if after 10:30 AM or user-defined start time (whichever is later)
 			    && Time[0].TimeOfDay <= End.TimeOfDay // Check if within the end time
 			    )
@@ -595,6 +602,16 @@ namespace NinjaTrader.NinjaScript.Strategies
 		
 		#endregion
 
+		#region Trading Variables 
+		[NinjaScriptProperty]
+		[Display(Name = "Use SMA", Order = 0, GroupName = "SMA Settings")]
+		public bool UseSMA { get; set; }
+		
+		[NinjaScriptProperty]
+		[Display(Name = "Use DR/iDR", Order = 1, GroupName = "DR/iDR Settings")]
+		public bool UseDRiDR { get; set; }
+		#endregion
+		
 		#region 3. Filters - SMA
 		[NinjaScriptProperty]
 		[Range(1, int.MaxValue)]
